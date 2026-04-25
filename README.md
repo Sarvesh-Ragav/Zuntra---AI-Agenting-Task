@@ -1,18 +1,20 @@
 # AI Customer Support Message Classifier
 
-This project classifies customer support messages into **category** and **priority** using a large language model. It calls an LLM through an **OpenAI-compatible chat API** (primarily **OpenRouter**), with optional **Google Gemini** (AI Studio), then parses and aggregates results into strict JSON.
+This project classifies customer support messages into **category** and **priority** using a large language model. It calls an LLM through an **OpenAI-compatible chat API** (primarily **OpenRouter**), with optional **Google Gemini** (AI Studio), parses the model’s JSON reply, and prints a structured result from an **interactive CLI**.
 
 ---
 
 ## Visual workflow
 
+Flowcharts render on GitHub and many Markdown viewers that support [Mermaid](https://mermaid.js.org/).
+
 ### Overview
 
 ```mermaid
 flowchart TD
-    A([Input messages]) --> B[LLM classification<br/>OpenAI-compatible API]
+    A([CLI input]) --> B[LLM classification<br/>OpenAI-compatible API]
     B --> C[JSON parsing and validation]
-    C --> D([Structured output])
+    C --> D([Structured JSON output])
 
     classDef terminal fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px,color:#0d47a1
     classDef step fill:#f8f9fa,stroke:#5f6368,stroke-width:1px,color:#202124
@@ -24,11 +26,12 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[User messages] --> B[Loop through messages]
-    B --> C[LLM prompt → classification]
-    C --> D[Safe JSON parsing]
-    D --> E[Result aggregation]
-    E --> F[Final JSON output]
+    A[Readline prompt] --> B[User message]
+    B --> C[classifyMessage + optional API retry]
+    C --> D[LLM prompt → classification]
+    D --> E[Safe JSON parsing]
+    E --> F[Print JSON to stdout]
+    F --> A
 
     classDef phase fill:#fff8e1,stroke:#f9ab00,stroke-width:1px,color:#5f4100
     class A,B,C,D,E,F phase
@@ -38,11 +41,11 @@ flowchart TD
 
 ## Features
 
-- **Multi-message processing** — classify several messages in one run  
-- **LLM-based classification** — categories and priorities from the model  
-- **Strict JSON output** — `JSON.stringify` for valid, quoted JSON  
-- **Error handling** — failed classifications become structured error rows; the run continues  
-- **Rate limiting** — one-second delay between API calls  
+- **Interactive CLI** — Node.js `readline`; type a message, get a result; type **`exit`** to quit  
+- **LLM-based classification** — strict prompt with fixed categories and priorities  
+- **Strict JSON output** — each successful run prints `JSON.stringify(result, null, 2)`  
+- **Resilient API calls** — **one automatic retry** after a 1s delay if the classification request fails  
+- **Graceful CLI errors** — failures print to **stderr**; the session keeps running  
 
 ---
 
@@ -68,8 +71,9 @@ flowchart TD
 
 2. **Configure environment**
 
-   Copy `.env.example` to `.env` and set at least one API key (see `.env.example` for options).  
-   Example: `OPENROUTER_API_KEY` or `OPENAI_API_KEY`, or `GEMINI_API_KEY` / `GOOGLE_API_KEY` for Gemini.
+   Copy `.env.example` to `.env` and set at least one API key.  
+   Example: `OPENROUTER_API_KEY` or `OPENAI_API_KEY`, or `GEMINI_API_KEY` / `GOOGLE_API_KEY` for Gemini.  
+   Optional: `LLM_PROVIDER=openrouter|gemini|openai` to force a backend.
 
 3. **Run**
 
@@ -79,47 +83,40 @@ flowchart TD
 
 ---
 
-## Sample input
+## Usage
 
-The script uses these three messages (see `index.js`):
-
-1. `My payment got deducted but service is not activated`  
-2. `App crashes every time I login`  
-3. `How to change my email address?`  
+1. Start the app; you’ll see a prompt.  
+2. Enter a customer message and press Enter.  
+3. Read the JSON object printed below the prompt.  
+4. Repeat, or type **`exit`** to leave.
 
 ---
 
-## Sample output
+## Sample input / output
 
-Illustrative result (exact `category` / `priority` values depend on the model):
+**Typed message (example):**
 
-```json
-[
-  {
-    "message": "My payment got deducted but service is not activated",
-    "category": "Billing",
-    "priority": "High"
-  },
-  {
-    "message": "App crashes every time I login",
-    "category": "Technical Issue",
-    "priority": "High"
-  },
-  {
-    "message": "How to change my email address?",
-    "category": "Account",
-    "priority": "Low"
-  }
-]
+```text
+My payment got deducted but service is not activated
 ```
 
-If a call fails, that row uses `"category": "Error"` and `"priority": "Error"` while other rows still classify normally.
+**Printed JSON (illustrative — exact labels depend on the model):**
+
+```json
+{
+  "message": "My payment got deducted but service is not activated",
+  "category": "Billing",
+  "priority": "High"
+}
+```
+
+If classification fails after the retry, an error message is printed to **stderr** and you can enter another message.
 
 ---
 
 ## Approach
 
-- **Prompt engineering** — A fixed system-style instruction defines allowed categories (Billing, Technical Issue, Account, General Inquiry), priorities (High, Medium, Low), and requires **JSON-only** replies.  
-- **JSON enforcement** — Responses are parsed defensively (e.g. fenced code blocks, embedded objects) and validated before building each result object.  
-- **Loop-based processing** — Messages are handled sequentially with a short delay between requests to reduce rate-limit risk.  
-- **Error handling** — Per-message `try` / `catch` records failures as explicit error objects so the batch still produces a complete JSON array.
+- **Prompt engineering** — A strict classifier instruction defines categories (Billing, Technical Issue, Account, General Inquiry), priorities (High, Medium, Low), tie-break rules for vague or multi-issue text, and requires **JSON-only** replies with exactly two keys.  
+- **JSON enforcement** — Responses are parsed defensively (e.g. fenced code blocks, embedded objects) and validated before building `{ message, category, priority }`.  
+- **API retry** — `classifyMessage` runs the provider call twice at most: initial attempt, then **one** repeat after **1 second** if the first fails.  
+- **Interactive loop** — `index.js` uses `readline` `question()` in a `while` loop until the user enters **`exit`**.
