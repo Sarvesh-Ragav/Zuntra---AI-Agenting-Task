@@ -1,6 +1,6 @@
 # AI Customer Support Message Classifier
 
-This project classifies customer support messages into **category** and **priority** using a large language model. It calls an LLM through an **OpenAI-compatible chat API** (primarily **OpenRouter**), with optional **Google Gemini** (AI Studio), parses the model’s JSON reply, and prints a structured result from an **interactive CLI**.
+This project classifies customer support messages into **category** and **priority** using a large language model. It calls **OpenRouter** (OpenAI-compatible chat API) with the official `openai` SDK, parses the model’s JSON reply, and prints a structured result from an **interactive CLI**.
 
 ---
 
@@ -54,7 +54,7 @@ flowchart TD
 | Area | Choice |
 |------|--------|
 | Runtime | Node.js (ESM) |
-| LLM access | **OpenRouter** (OpenAI-compatible HTTP API); optional **Gemini** via `@google/generative-ai` (direct OpenAI remains supported in code via `.env.example`) |
+| LLM access | **OpenRouter** (OpenAI-compatible HTTP API) via `openai` + `OPENROUTER_API_KEY` |
 | Language | JavaScript (ES modules) |
 
 **Why OpenRouter instead of OpenAI directly?** The OpenAI account available for this work only supported **paid-credit** usage, so direct OpenAI API access was not practical. **OpenRouter** with an API key provides access to the same class of chat models through an **OpenAI-compatible** interface, which this project uses via the official `openai` Node SDK (`baseURL` set to OpenRouter).
@@ -71,9 +71,8 @@ flowchart TD
 
 2. **Configure environment**
 
-   Copy `.env.example` to `.env` and set the API Key.  
-   Example: `OPENROUTER_API_KEY`.
-   Optional: `LLM_PROVIDER=openrouter|gemini|openai` to force a backend.
+   Copy `.env.example` to `.env` and set **`OPENROUTER_API_KEY`**.  
+   Optional: `OPENROUTER_MODEL`, `OPENROUTER_HTTP_REFERER`, `OPENROUTER_APP_TITLE`.
 
 3. **Run**
 
@@ -97,16 +96,16 @@ flowchart TD
 **Typed message (example):**
 
 ```text
-My payment got deducted but service is not activated
+I upgraded my plan yesterday but I'm still seeing ads and limited features
 ```
 
 **Printed JSON (illustrative — exact labels depend on the model):**
 
 ```json
 {
-  "message": "My payment got deducted but service is not activated",
+  "message": "I upgraded my plan yesterday but I'm still seeing ads and limited features",
   "category": "Billing",
-  "priority": "High"
+  "priority": "Medium"
 }
 ```
 

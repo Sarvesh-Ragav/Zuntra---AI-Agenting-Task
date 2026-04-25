@@ -1,63 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
-const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash';
-const OPENAI_MODEL = 'gpt-4o-mini';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const OPENROUTER_DEFAULT_MODEL = 'openai/gpt-4o-mini';
-
-function getGeminiApiKey() {
-  return (
-    process.env.GEMINI_API_KEY?.trim() ||
-    process.env.GOOGLE_API_KEY?.trim() ||
-    ''
-  );
-}
-
-/**
- * Which backend to use. Explicit LLM_PROVIDER wins; otherwise OpenRouter is
- * preferred when its key exists (avoids hitting Gemini quota when both keys are in .env).
- * @returns {'openrouter' | 'gemini' | 'openai'}
- */
-function resolveProvider() {
-  const raw = process.env.LLM_PROVIDER?.trim().toLowerCase();
-  if (raw === 'openrouter' || raw === 'router') {
-    if (!process.env.OPENROUTER_API_KEY?.trim()) {
-      throw new Error(
-        'LLM_PROVIDER=openrouter but OPENROUTER_API_KEY is missing',
-      );
-    }
-    return 'openrouter';
-  }
-  if (raw === 'gemini' || raw === 'google') {
-    if (!getGeminiApiKey()) {
-      throw new Error(
-        'LLM_PROVIDER=gemini but GEMINI_API_KEY (or GOOGLE_API_KEY) is missing',
-      );
-    }
-    return 'gemini';
-  }
-  if (raw === 'openai') {
-    if (!process.env.OPENAI_API_KEY?.trim()) {
-      throw new Error('LLM_PROVIDER=openai but OPENAI_API_KEY is missing');
-    }
-    return 'openai';
-  }
-
-  if (process.env.OPENROUTER_API_KEY?.trim()) {
-    return 'openrouter';
-  }
-  if (getGeminiApiKey()) {
-    return 'gemini';
-  }
-  if (process.env.OPENAI_API_KEY?.trim()) {
-    return 'openai';
-  }
-
-  throw new Error(
-    'Missing API key: set OPENROUTER_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY), or OPENAI_API_KEY in your environment (e.g. .env). Optional: LLM_PROVIDER=openrouter|gemini|openai',
-  );
-}
 
 /**
  * @returns {{ client: OpenAI, model: string }}
@@ -65,7 +9,9 @@ function resolveProvider() {
 function createOpenRouterClient() {
   const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!openrouterKey) {
-    throw new Error('OPENROUTER_API_KEY is not set');
+    throw new Error(
+      'OPENROUTER_API_KEY is not set (add it to your environment, e.g. .env)',
+    );
   }
   const model =
     process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_DEFAULT_MODEL;
@@ -79,40 +25,6 @@ function createOpenRouterClient() {
         process.env.OPENROUTER_APP_TITLE?.trim() ||
         'customer-support-classifier',
     },
-  });
-  return { client, model };
-}
-
-/**
- * OpenAI API or compatible URL (e.g. OpenRouter via OPENAI_BASE_URL).
- * @returns {{ client: OpenAI, model: string }}
- */
-function createOpenAIKeyClient() {
-  const openaiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!openaiKey) {
-    throw new Error('OPENAI_API_KEY is not set');
-  }
-  const customBaseUrl = process.env.OPENAI_BASE_URL?.trim();
-  const useOpenRouter =
-    customBaseUrl?.includes('openrouter.ai') ?? false;
-  const model = useOpenRouter
-    ? process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_DEFAULT_MODEL
-    : OPENAI_MODEL;
-  const client = new OpenAI({
-    apiKey: openaiKey,
-    ...(customBaseUrl ? { baseURL: customBaseUrl } : {}),
-    ...(useOpenRouter
-      ? {
-          defaultHeaders: {
-            'HTTP-Referer':
-              process.env.OPENROUTER_HTTP_REFERER?.trim() ||
-              'http://localhost',
-            'X-Title':
-              process.env.OPENROUTER_APP_TITLE?.trim() ||
-              'customer-support-classifier',
-          },
-        }
-      : {}),
   });
   return { client, model };
 }
@@ -137,33 +49,6 @@ async function classifyWithOpenAIChat(client, model, message) {
   const content = completion.choices[0]?.message?.content;
   if (!content) {
     throw new Error('Empty response from the chat API');
-  }
-
-  const { category, priority } = parseClassifierJson(content);
-  return { message, category, priority };
-}
-
-/**
- * Google AI Studio / Gemini API (API key from https://aistudio.google.com/apikey).
- * @param {string} message
- * @param {string} apiKey
- */
-async function classifyWithGemini(message, apiKey) {
-  const modelId =
-    process.env.GEMINI_MODEL?.trim() || GEMINI_DEFAULT_MODEL;
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const geminiModel = genAI.getGenerativeModel({
-    model: modelId,
-    generationConfig: {
-      temperature: 0,
-    },
-  });
-
-  const prompt = buildClassifierPrompt(message);
-  const result = await geminiModel.generateContent(prompt);
-  const content = result.response.text();
-  if (!content) {
-    throw new Error('Empty response from Gemini');
   }
 
   const { category, priority } = parseClassifierJson(content);
@@ -264,27 +149,9 @@ export async function classifyMessage(message) {
     throw new TypeError('classifyMessage expects a non-empty string');
   }
 
-  let provider;
-  try {
-    provider = resolveProvider();
-  } catch (err) {
-    if (err instanceof TypeError) {
-      throw err;
-    }
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(`Classification failed: ${detail}`);
-  }
-
   try {
     return await withApiRetry(async () => {
-      if (provider === 'gemini') {
-        return await classifyWithGemini(message, getGeminiApiKey());
-      }
-      if (provider === 'openrouter') {
-        const { client, model } = createOpenRouterClient();
-        return await classifyWithOpenAIChat(client, model, message);
-      }
-      const { client, model } = createOpenAIKeyClient();
+      const { client, model } = createOpenRouterClient();
       return await classifyWithOpenAIChat(client, model, message);
     });
   } catch (err) {
