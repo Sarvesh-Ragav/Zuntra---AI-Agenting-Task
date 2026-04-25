@@ -71,8 +71,8 @@ flowchart TD
 
 2. **Configure environment**
 
-   Copy `.env.example` to `.env` and set at least one API key.  
-   Example: `OPENROUTER_API_KEY` or `OPENAI_API_KEY`, or `GEMINI_API_KEY` / `GOOGLE_API_KEY` for Gemini.  
+   Copy `.env.example` to `.env` and set the API Key.  
+   Example: `OPENROUTER_API_KEY`.
    Optional: `LLM_PROVIDER=openrouter|gemini|openai` to force a backend.
 
 3. **Run**
