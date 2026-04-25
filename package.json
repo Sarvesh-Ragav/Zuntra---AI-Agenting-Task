@@ -1,0 +1,19 @@
+{
+  "name": "customer-support-classifier",
+  "version": "1.0.0",
+  "description": "AI-powered customer support classifier (Gemini / OpenAI / OpenRouter).",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true,
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^17.4.2",
+    "openai": "^6.34.0"
+  }
+}
