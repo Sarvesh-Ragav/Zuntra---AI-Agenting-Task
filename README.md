@@ -6,8 +6,6 @@ This project classifies customer support messages into **category** and **priori
 
 ## Visual workflow
 
-Flowcharts below render on GitHub and many Markdown viewers that support [Mermaid](https://mermaid.js.org/).
-
 ### Overview
 
 ```mermaid
