@@ -1,37 +1,39 @@
 # AI Customer Support Message Classifier
 
-This project classifies customer support messages into **category** and **priority** using a large language model. It calls an LLM through an **OpenAI-compatible chat API** (e.g. OpenRouter or OpenAI) or optionally **Google Gemini** (AI Studio), then parses and aggregates results into strict JSON.
+This project classifies customer support messages into **category** and **priority** using a large language model. It calls an LLM through an **OpenAI-compatible chat API** (primarily **OpenRouter**), with optional **Google Gemini** (AI Studio), then parses and aggregates results into strict JSON.
 
 ---
 
 ## Visual workflow
 
-**Overview**
+Flowcharts below render on GitHub and many Markdown viewers that support [Mermaid](https://mermaid.js.org/).
 
-```
-Input Messages
-        ↓
-LLM Classification (OpenAI API)
-        ↓
-JSON Parsing & Validation
-        ↓
-Structured Output
+### Overview
+
+```mermaid
+flowchart TD
+    A([Input messages]) --> B[LLM classification<br/>OpenAI-compatible API]
+    B --> C[JSON parsing and validation]
+    C --> D([Structured output])
+
+    classDef terminal fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px,color:#0d47a1
+    classDef step fill:#f8f9fa,stroke:#5f6368,stroke-width:1px,color:#202124
+    class A,D terminal
+    class B,C step
 ```
 
-**Pipeline detail**
+### Pipeline detail
 
-```
-[User Messages]
-        ↓
-[Loop through messages]
-        ↓
-[LLM Prompt → Classification]
-        ↓
-[Safe JSON Parsing]
-        ↓
-[Result Aggregation]
-        ↓
-[Final JSON Output]
+```mermaid
+flowchart TD
+    A[User messages] --> B[Loop through messages]
+    B --> C[LLM prompt → classification]
+    C --> D[Safe JSON parsing]
+    D --> E[Result aggregation]
+    E --> F[Final JSON output]
+
+    classDef phase fill:#fff8e1,stroke:#f9ab00,stroke-width:1px,color:#5f4100
+    class A,B,C,D,E,F phase
 ```
 
 ---
@@ -51,8 +53,10 @@ Structured Output
 | Area | Choice |
 |------|--------|
 | Runtime | Node.js (ESM) |
-| LLM access | OpenAI-compatible API (**OpenRouter** / **OpenAI**); optional **Gemini** via `@google/generative-ai` |
+| LLM access | **OpenRouter** (OpenAI-compatible HTTP API); optional **Gemini** via `@google/generative-ai` (direct OpenAI remains supported in code via `.env.example`) |
 | Language | JavaScript (ES modules) |
+
+**Why OpenRouter instead of OpenAI directly?** The OpenAI account available for this work only supported **paid-credit** usage, so direct OpenAI API access was not practical. **OpenRouter** with an API key provides access to the same class of chat models through an **OpenAI-compatible** interface, which this project uses via the official `openai` Node SDK (`baseURL` set to OpenRouter).
 
 ---
 

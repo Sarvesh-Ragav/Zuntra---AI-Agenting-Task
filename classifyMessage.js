@@ -171,11 +171,34 @@ async function classifyWithGemini(message, apiKey) {
 }
 
 function buildClassifierPrompt(message) {
-  return `You are a support ticket classifier.
-Classify the given message into:
-- Category: Billing, Technical Issue, Account, General Inquiry
-- Priority: High, Medium, Low
-Return ONLY JSON:
+  return `You are a strict support ticket classifier.
+
+Your task:
+Classify the given message into exactly ONE category and ONE priority based on the definitions below.
+
+Categories (pick one label exactly as written):
+- Billing — issues related to payments, charges, refunds, subscriptions
+- Technical Issue — crashes, bugs, errors, app not working
+- Account — login, profile, email, account access or security
+- General Inquiry — general questions, information requests, non-issues
+
+Priority (pick one):
+- High — blocking issues, urgent problems, user cannot proceed
+- Medium — partial issues, unclear problems, or lack of urgency
+- Low — informational queries, general questions
+
+Rules:
+- Always choose exactly ONE category and ONE priority
+- If the message is vague or unclear, default to:
+  category: Account (if account-related) or General Inquiry
+  priority: Medium
+- If multiple issues are mentioned, prioritize the most critical one
+- Do NOT invent new labels
+- Be consistent and deterministic
+
+Return ONLY valid JSON.
+Do NOT include any explanation, markdown, or extra text.
+Use EXACTLY this format and no additional keys:
 {
   "category": "",
   "priority": ""
@@ -222,6 +245,16 @@ function parseClassifierJson(text) {
   throw new Error('Could not parse classifier JSON from model response');
 }
 
+/** Runs `fn` once; on failure waits 1s and runs `fn` one more time, then propagates errors. */
+async function withApiRetry(fn) {
+  try {
+    return await fn();
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return await fn();
+  }
+}
+
 /**
  * @param {string} message
  * @returns {Promise<{ message: string, category: string, priority: string }>}
@@ -243,15 +276,17 @@ export async function classifyMessage(message) {
   }
 
   try {
-    if (provider === 'gemini') {
-      return await classifyWithGemini(message, getGeminiApiKey());
-    }
-    if (provider === 'openrouter') {
-      const { client, model } = createOpenRouterClient();
+    return await withApiRetry(async () => {
+      if (provider === 'gemini') {
+        return await classifyWithGemini(message, getGeminiApiKey());
+      }
+      if (provider === 'openrouter') {
+        const { client, model } = createOpenRouterClient();
+        return await classifyWithOpenAIChat(client, model, message);
+      }
+      const { client, model } = createOpenAIKeyClient();
       return await classifyWithOpenAIChat(client, model, message);
-    }
-    const { client, model } = createOpenAIKeyClient();
-    return await classifyWithOpenAIChat(client, model, message);
+    });
   } catch (err) {
     if (err instanceof TypeError) {
       throw err;

@@ -1,25 +1,34 @@
 import 'dotenv/config';
 
+import { createInterface } from 'node:readline/promises';
+
 import { classifyMessage } from './classifyMessage.js';
 
-const messages = [
-  'My payment got deducted but service is not activated',
-  'App crashes every time I login',
-  'How to change my email address?',
-];
+const rl = createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
-const results = [];
-for (const message of messages) {
-  try {
-    results.push(await classifyMessage(message));
-  } catch {
-    results.push({
-      message,
-      category: 'Error',
-      priority: 'Error',
-    });
+console.log('Enter a customer message (type "exit" to quit).\n');
+
+try {
+  while (true) {
+    const line = await rl.question('> ');
+    const message = line.trim();
+    if (message === '') {
+      continue;
+    }
+    if (/^exit$/i.test(message)) {
+      break;
+    }
+
+    try {
+      const result = await classifyMessage(message);
+      console.log(JSON.stringify(result, null, 2));
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : err);
+    }
   }
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+} finally {
+  rl.close();
 }
-
-console.log(JSON.stringify(results, null, 2));
